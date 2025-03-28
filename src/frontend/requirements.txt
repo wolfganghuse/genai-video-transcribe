@@ -1,0 +1,5 @@
+openai==1.69.0
+pgvector==0.4.0
+psycopg2-binary==2.9.10
+SQLAlchemy==2.0.40
+streamlit==1.44.0
