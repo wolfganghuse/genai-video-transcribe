@@ -27,7 +27,7 @@ model = whisper.load_model("base")
 engine = create_engine(db_url)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
-
+Base.metadata.create_all(bind=engine)
 
 class VideoEmbedding(Base):
     __tablename__ = "video_embeddings"
@@ -39,8 +39,6 @@ class VideoEmbedding(Base):
     thumbnail = Column(String)
     video_url = Column(String)
     text = Column(String)
-
-Base.metadata.create_all(bind=engine)
 
 def store_embedding(video_data):
     session = SessionLocal()
