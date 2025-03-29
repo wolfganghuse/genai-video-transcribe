@@ -26,10 +26,12 @@ spec:
           value: https://objects.solengcnai-lab.cloudnative.nvdlab.net
         resources:
           requests:
-            cpu: 8
+            cpu: 2
             memory: 8Gi
+            nvidia.com/gpu: 1
           limits:
-            cpu: 8
-            memory: 16Gi        
+            cpu: 4
+            memory: 16Gi
+            nvidia.com/gpu: 1
         ports:
           - containerPort: 8080
