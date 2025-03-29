@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: knative-config-overrides
+data:
+  values.yaml: |
+    eventing:
+      enabled: true

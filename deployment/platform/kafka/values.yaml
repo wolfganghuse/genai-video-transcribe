@@ -1,0 +1,31 @@
+externalAccess:
+  enabled: true
+  broker:
+    service:
+      ports:
+        external: 9094
+      type: LoadBalancer
+  controller:
+    service:
+      containerPorts:
+        external: 9094
+      type: LoadBalancer
+  autoDiscovery:
+    enabled: true
+serviceAccount:
+  create: true
+rbac:
+  create: true
+controller:
+  replicaCount: 1
+  automountServiceAccountToken: true
+broker:
+  automountServiceAccountToken: true
+service:
+  externalPort: 9094
+listeners:
+  external:
+    protocol: PLAINTEXT
+extraConfig: |
+  offsets.topic.replication.factor=1
+  transaction.state.log.replication.factor=1
