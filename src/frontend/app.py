@@ -2,7 +2,7 @@ import streamlit as st
 from openai import OpenAI
 import requests
 
-from sqlalchemy import create_engine, Column, String, Float, select
+from sqlalchemy import create_engine, Column, String, Float, select, Integer
 from pgvector.sqlalchemy import Vector
 #from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, declarative_base
@@ -22,8 +22,8 @@ Base = declarative_base()
 class VideoEmbedding(Base):
     __tablename__ = "video_embeddings"
 
-    id = Column(String, primary_key=True)
-    embedding = Column(Vector(2048))
+    id = Column(Integer, primary_key=True, autoincrement=True)  # Auto-increment ID
+    embedding = Column(Vector(2048), index=True)  # Indexed for faster search
     initial_time = Column(Float)
     title = Column(String)
     thumbnail = Column(String)

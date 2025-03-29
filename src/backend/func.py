@@ -11,7 +11,7 @@ import whisper
 import ffmpeg
 from pathlib import Path
 from openai import OpenAI
-from sqlalchemy import create_engine, Column, String, Float
+from sqlalchemy import create_engine, Column, String, Float, Integer
 from pgvector.sqlalchemy import Vector
 from sqlalchemy.orm import sessionmaker , declarative_base
 import tempfile
@@ -32,8 +32,8 @@ Base.metadata.create_all(bind=engine)
 class VideoEmbedding(Base):
     __tablename__ = "video_embeddings"
 
-    id = Column(String, primary_key=True)
-    embedding = Column(Vector(2048))
+    id = Column(Integer, primary_key=True, autoincrement=True)  # Auto-increment ID
+    embedding = Column(Vector(2048), index=True)  # Indexed for faster search
     initial_time = Column(Float)
     title = Column(String)
     thumbnail = Column(String)
@@ -42,18 +42,20 @@ class VideoEmbedding(Base):
 
 def store_embedding(video_data):
     session = SessionLocal()
-    for entry in video_data:
-        embedding_vector=entry["embedding"]
-        record = VideoEmbedding(
-            id=entry["id"],
-            embedding=embedding_vector,
+    
+    records = [
+        VideoEmbedding(
+            embedding=entry["embedding"],
             initial_time=entry["initial_time"],
             title=entry["title"],
             thumbnail=entry["thumbnail"],
             video_url=entry["video_url"],
             text=entry["text"],
         )
-        session.add(record)
+        for entry in video_data
+    ]
+    
+    session.bulk_save_objects(records)  # Bulk insert for performance
     session.commit()
     session.close()
 
@@ -206,6 +208,6 @@ def main(context: Context):
 
     except Exception as e:
         logger.error(f"Failed to process event: {e}")
-            return "", 204
+        return "", 204
 
     return "", 204
