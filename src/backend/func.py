@@ -206,6 +206,6 @@ def main(context: Context):
 
     except Exception as e:
         logger.error(f"Failed to process event: {e}")
-        raise
+            return "", 204
 
     return "", 204
