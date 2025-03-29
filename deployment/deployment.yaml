@@ -16,6 +16,7 @@ spec:
       containers:
       - name: transcribe-frontend
         image: harbor.infrastructure.cloudnative.nvdlab.net/wolfgang/transcribe-frontend:0.1.0
+        imagePullPolicy: Always
         env:
         - name: DATABASE_URL
           value: postgresql://postgres:postgres@10.122.7.94/flowise_ndb
@@ -23,6 +24,14 @@ spec:
           value: 415c846c-553f-4e8e-bc61-9ef0b37b1b88
         - name: BASE_URL
           value: https://nai.wh-nkp-nai-stage.cloudnative.nvdlab.net/api/v1
+        resources:
+          requests:
+            cpu: 2
+            memory: 4Gi
+            nvidia.com/gpu: 1
+          limits:
+            cpu: 2
+            memory: 4Gi
 ---
 apiVersion: v1
 kind: Service
