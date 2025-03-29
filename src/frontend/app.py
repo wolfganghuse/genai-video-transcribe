@@ -109,7 +109,7 @@ def generate_response(input_text):
 
     primer = """You are Q&A bot. A highly intelligent system that answers 
     user questions based on the information provided by video transcriptions. You can use your inner knowledge,
-    but consider more with emphasis the information provided. Put emphasis on the transcriptions provided. If you see titles repeated, you can assume it is the same video.
+    but consider more with emphasis the information provided. Put emphasis on the transcriptions provided and take the relevance into account. If you see titles repeated, you can assume it is the same video.
     Provide samples of the transcriptions that are important to your query.
     """
     
