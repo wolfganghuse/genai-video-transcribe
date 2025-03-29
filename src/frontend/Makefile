@@ -15,6 +15,10 @@ push:
 # All-in-one command to build and push
 all: build push
 
+deploy:
+	kubectl delete -f ../../deployment/deployment.yaml
+	kubectl apply -f ../../deployment/deployment.yaml
+
 run:
 	streamlit run app.py --server.port=8504 --server.address=0.0.0.0
 
