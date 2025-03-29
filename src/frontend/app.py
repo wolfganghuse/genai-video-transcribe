@@ -23,7 +23,7 @@ class VideoEmbedding(Base):
     __tablename__ = "video_embeddings"
 
     id = Column(Integer, primary_key=True, autoincrement=True)  # Auto-increment ID
-    embedding = Column(Vector(2048))  # Indexed for faster search
+    embedding = Column(Vector(2048))
     initial_time = Column(Float)
     title = Column(String)
     thumbnail = Column(String)
