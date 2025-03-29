@@ -1,0 +1,16 @@
+apiVersion: sources.knative.dev/v1beta1
+kind: KafkaSource
+metadata:
+  name: kafka-transcribe-backend
+  namespace: transcribe-demo
+spec:
+  consumerGroup: knative-group
+  bootstrapServers:
+  - kafka.kafka:9095
+  topics:
+  - OSSEvents
+  sink:
+    ref:
+      apiVersion: serving.knative.dev/v1
+      kind: Service
+      name: transcribe-backend

@@ -1,0 +1,35 @@
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  name: transcribe-backend
+  namespace: transcribe-demo
+spec:
+  template:
+    metadata:
+      annotations:
+        autoscaling.knative.dev/min-scale: "1"
+    spec:
+      containers:
+      - image: harbor.infrastructure.cloudnative.nvdlab.net/wolfgang/transcribe-backend:0.1.0
+        env:
+        - name: DATABASE_URL
+          value: postgresql://postgres:postgres@10.122.7.94/flowise_ndb
+        - name: OPENAI_TOKEN
+          value: 415c846c-553f-4e8e-bc61-9ef0b37b1b88
+        - name: BASE_URL
+          value: https://nai.wh-nkp-nai-stage.cloudnative.nvdlab.net/api/v1
+        - name: ACCESS_KEY
+          value: 2_E2scE2hit4p2LdbgXA5tzptA4g-Utk
+        - name: SECRET_KEY
+          value: DzOwbItwTrt1so91BcltVo1Ef-e9xIYP
+        - name: S3_ENDPOINT_URL
+          value: https://objects.solengcnai-lab.cloudnative.nvdlab.net
+        resources:
+          requests:
+            cpu: 8
+            memory: 8Gi
+          limits:
+            cpu: 8
+            memory: 16Gi        
+        ports:
+          - containerPort: 8080

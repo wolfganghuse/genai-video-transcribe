@@ -1,6 +1,11 @@
-import os
-import argparse
+from parliament import Context
+from cloudevents.conversion import to_json
+from config import *
+from urllib.parse import urlparse, urlunparse
 
+import logging
+import boto3
+import os
 import whisper
 
 import ffmpeg
@@ -11,7 +16,6 @@ from pgvector.sqlalchemy import Vector
 from sqlalchemy.orm import sessionmaker , declarative_base
 import tempfile
 from vtt_utils import merge_webvtt_to_list
-from config import *
 
 
 client = OpenAI(api_key=api_key, base_url=base_url)
@@ -20,7 +24,6 @@ client = OpenAI(api_key=api_key, base_url=base_url)
 model = whisper.load_model("base")
 
 # Database Setup
-db_url = os.getenv("DATABASE_URL", "postgresql://user:password@localhost/dbname")
 engine = create_engine(db_url)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
@@ -128,14 +131,83 @@ def process_video(video_url: str) -> dict[str, str]:
         
         return {"title": video_title}
 
-def main():
-    parser = argparse.ArgumentParser(description="Process a local MP4 video file.")
-    parser.add_argument("video_path", type=str, help="Path to the local MP4 file")
-    args = parser.parse_args()
-    
-    
-    result = process_video(args.video_path)
-    print(f"Processing complete: {result}")
 
-if __name__ == "__main__":
-    main()
+
+# Logging Configuration
+logger = logging.getLogger('transcribe_backend')
+logger.setLevel(logging.DEBUG)
+logging.basicConfig(format='%(asctime)s %(levelname)s %(message)s')
+
+
+# Utility Functions
+def remove_query_from_url(url):
+    """
+    Removes the query parameters from a URL.
+    :param url: The original URL
+    :return: The URL without the query parameters
+    """
+    parsed_url = urlparse(url)
+    return urlunparse(parsed_url._replace(query=""))
+
+def s3_client():
+    """Create and return an S3 client."""
+    try:
+        session = boto3.Session()
+        return session.client('s3',
+                              endpoint_url=s3_endpoint_url,
+                              aws_access_key_id=access_key,
+                              aws_secret_access_key=secret_key,
+                              region_name=s3_region,
+                              verify=ssl_verify)
+    except Exception as e:
+        logger.error(f"Failed to create S3 client: {e}")
+        raise
+
+def get_signed_url(bucket, obj):
+    """
+    Generate a presigned URL for accessing an S3 object.
+    :param bucket: S3 bucket name
+    :param obj: S3 object key
+    :return: Presigned URL
+    """
+    try:
+        return s3_client().generate_presigned_url(
+            'get_object',
+            Params={'Bucket': bucket, 'Key': obj},
+            ExpiresIn=signed_url_expiration
+        )
+    except Exception as e:
+        logger.error(f"Failed to generate presigned URL: {e}")
+        raise
+
+def main(context: Context):
+    """
+    Main entry point for processing events.
+    :param context: Context containing CloudEvent data
+    """
+    try:
+        source_attributes = context.cloud_event.get_attributes()
+        logger.info(f'REQUEST: {to_json(context.cloud_event)}', extra=source_attributes)
+
+        data = context.cloud_event.data
+        notification_type = data["Records"][0]["eventName"]
+
+        if notification_type in ["s3:ObjectCreated:Put", "s3:ObjectCreated:CompleteMultipartUpload"]:
+            src_bucket = data["Records"][0]["s3"]["bucket"]["name"]
+            src_obj = data["Records"][0]["s3"]["object"]["key"]
+
+            signed_url = get_signed_url(src_bucket, src_obj)
+            logger.info(f'SIGNED URL: {signed_url}', extra=source_attributes)
+
+            result = process_video(signed_url)
+            logger.info(f'Video processed: {result}', extra=source_attributes)
+            logger.info(f'Successfully embedded: {notification_type}', extra=source_attributes)
+
+        else:
+            logger.info(f'Event not processed: {notification_type}', extra=source_attributes)
+
+    except Exception as e:
+        logger.error(f"Failed to process event: {e}")
+        raise
+
+    return "", 204
