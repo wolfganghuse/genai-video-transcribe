@@ -18,6 +18,7 @@ all: build push
 
 run:
 	python app.py https://objects.solengcnai-lab.cloudnative.nvdlab.net/videostore/AdmiralMcRaven.mp4
+	python app.py https://objects.solengcnai-lab.cloudnative.nvdlab.net/videostore/stevejobs.mp4
 
 docker_run:
 	$(CONTAINER_ENGINE) build -t $(DOCKER_REGISTRY)/$(IMAGE_NAME):$(TAG) .

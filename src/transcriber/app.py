@@ -6,7 +6,8 @@ import whisper
 import ffmpeg
 from pathlib import Path
 from openai import OpenAI
-from sqlalchemy import create_engine, Column, String, Float
+from sqlalchemy import Index
+from sqlalchemy import create_engine, Column, String, Float, Integer
 from pgvector.sqlalchemy import Vector
 from sqlalchemy.orm import sessionmaker , declarative_base
 import tempfile
@@ -29,30 +30,42 @@ Base = declarative_base()
 class VideoEmbedding(Base):
     __tablename__ = "video_embeddings"
 
-    id = Column(String, primary_key=True)
-    embedding = Column(Vector(2048))
+    id = Column(Integer, primary_key=True, autoincrement=True)  # Auto-increment ID
+    embedding = Column(Vector(1024)) 
     initial_time = Column(Float)
     title = Column(String)
     thumbnail = Column(String)
     video_url = Column(String)
     text = Column(String)
 
+
+# Create an index for cosine distance on the embedding column
+Index(
+    "ix_video_embeddings_embedding_cosine",  # Index name
+    VideoEmbedding.embedding,
+    postgresql_using="ivfflat",  # Use the IVFFLAT indexing method
+    postgresql_ops={"embedding": "vector_cosine_ops"},  # Use the cosine similarity operator
+    postgresql_with={"lists": 100},  # Adjust based on your data
+)
+
 Base.metadata.create_all(bind=engine)
 
 def store_embedding(video_data):
     session = SessionLocal()
-    for entry in video_data:
-        embedding_vector=entry["embedding"]
-        record = VideoEmbedding(
-            id=entry["id"],
-            embedding=embedding_vector,
+    
+    records = [
+        VideoEmbedding(
+            embedding=entry["embedding"],
             initial_time=entry["initial_time"],
             title=entry["title"],
             thumbnail=entry["thumbnail"],
             video_url=entry["video_url"],
             text=entry["text"],
         )
-        session.add(record)
+        for entry in video_data
+    ]
+    
+    session.bulk_save_objects(records)  # Bulk insert for performance
     session.commit()
     session.close()
 
@@ -92,16 +105,16 @@ def process_video(video_url: str) -> dict[str, str]:
             return {}
         
         whisper_transcript = transcribe_audio_to_vtt(audio_file)
-        seconds_to_merge = 8
+        seconds_to_merge = 6
         transcript = merge_webvtt_to_list(whisper_transcript, seconds_to_merge)
-        stride = 3
+        stride = 2
         
         texts = [
             " ".join([t["text"] for t in transcript[block : min(block + stride, len(transcript))]]).replace("\n", " ")
             for block in range(0, len(transcript), stride)
         ]
         
-        embeddings_response = client.embeddings.create(input=texts, model="nv-embed-1b-v2")
+        embeddings_response = client.embeddings.create(input=texts, model="nv-embed-1b-v2", dimensions=1024)
         embeddings = [item.embedding for item in embeddings_response.data]
         
         video_data = []

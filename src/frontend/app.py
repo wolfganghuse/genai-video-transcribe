@@ -23,7 +23,7 @@ class VideoEmbedding(Base):
     __tablename__ = "video_embeddings"
 
     id = Column(Integer, primary_key=True, autoincrement=True)  # Auto-increment ID
-    embedding = Column(Vector(2048))
+    embedding = Column(Vector(1024)) 
     initial_time = Column(Float)
     title = Column(String)
     thumbnail = Column(String)
@@ -35,9 +35,10 @@ Base.metadata.create_all(bind=engine)
 def query_pgvector(input_text):
     session = SessionLocal()
     try:
+        logger.info(f"Querying pgvector with input text: {input_text}")
         # Generate embedding for the input text
         embedding_response = client.embeddings.create(
-            input=[input_text], model="nv-embed-1b-v2"
+            input=[input_text], model="nv-embed-1b-v2", dimensions=1024
         )
         input_embedding = embedding_response.data[0].embedding
         
@@ -46,9 +47,12 @@ def query_pgvector(input_text):
         query = (
             select(VideoEmbedding.id, VideoEmbedding.title, VideoEmbedding.text, VideoEmbedding.video_url, VideoEmbedding.embedding.cosine_distance(input_embedding).label('distance'))
             .order_by('distance')
-            .limit(5)
+            .limit(15)
         )
+
         results = session.execute(query).fetchall()
+        for result in results:
+            logger.info(f"Result: ID={result.id}, Title={result.title}, Text={result.text}, Video URL={result.video_url}")
         return results
     except Exception as e:
         logger.error(f"Error querying pgvector: {e}")
@@ -57,43 +61,60 @@ def query_pgvector(input_text):
         session.close()
 
 def rerank_results(query, results):
-    rerank_api_url = base_url + "/rerank"
+    rerank_api_url = f"{base_url}/rerank"
     headers = {
         "Authorization": f"Bearer {api_key}",
-        "accept": "application/json",
+        "Accept": "application/json",
         "Content-Type": "application/json"
     }
-    
-    documents = [{"text": result.text} for result in results]
+
+    # Format documents with video titles for better context
+    documents = [
+        {"text": f"{result.text}"} for result in results
+    ]
+
     payload = {
         "model": "nv-rerank-1b-v2",
-        "query": query,
+        "query": f"Which quote best answers this question: {query}.",
         "documents": documents,
-        "truncate": False
+        "truncate": True  # Keeps input concise for better ranking
     }
-    
-    response = requests.post(rerank_api_url, headers=headers, json=payload, verify=False)
-    if response.status_code == 200:
-        rerank_data = response.json()["results"]
-        
-        # Log relevance scores and attach them in a new structure
-        ranked_results = []
-        for doc in rerank_data:
-            result = results[doc["index"]]
-            ranked_results.append({
-                "result": result,  # Original result
-                "relevance_score": doc["relevance_score"]  # Relevance score
-            })
-            print(f"Index: {doc['index']}, Relevance Score: {doc['relevance_score']}")
-        return ranked_results
-    else:
-        print("Re-ranker API error:", response.text)
-        return results  # Return original results as fallback
 
+    logger.info(f"Sending rerank request to {rerank_api_url}")
+    logger.info(f"Headers: {headers}")
+    logger.info(f"Payload: {payload}")
+
+    try:
+        response = requests.post(rerank_api_url, headers=headers, json=payload)
+        response.raise_for_status()  # Raises an error for non-200 responses
+        
+        rerank_data = response.json()
+        logger.info(f"Reranker Response: {rerank_data}")
+
+        ranked_results = rerank_data.get("results", [])
+        if not ranked_results:
+            logger.warning("Re-ranker API returned an empty result set.")
+            return results  # Return original results as fallback
+
+        # Attach relevance scores to results
+        ranked_output = [
+            {"result": results[doc["index"]], "relevance_score": doc["relevance_score"]}
+            for doc in ranked_results
+        ]
+
+        # Debugging output for ranking
+        for doc in ranked_results:
+            logger.info(f"Index: {doc['index']}, Relevance Score: {doc['relevance_score']}")
+
+        return ranked_output
+
+    except requests.RequestException as e:
+        logger.error(f"Re-ranker API error: {e}", exc_info=True)
+        return results  # Fallback to original order
     
 def generate_response(input_text):
     results = query_pgvector(input_text)
-    results = rerank_results(input_text, results)
+    results = rerank_results(input_text, results)[:2]
 
     context = "The following are the top video transcriptions that match your query: \n"
     references = ""
